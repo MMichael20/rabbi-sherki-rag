@@ -1,0 +1,24 @@
+youtube:
+  channels: []
+    # - url: "https://www.youtube.com/@channel-name"
+    #   name: "Channel Display Name"
+  playlists: []
+    # - url: "https://www.youtube.com/playlist?list=PLxxxxx"
+    #   name: "Playlist Name"
+
+websites:
+  []
+  # - base_url: "https://example.org.il"
+  #   name: "Site Name"
+  #   article_pattern: "/articles/*"
+  #   selector: "div.article-content"
+
+telegram:
+  channels: []
+    # - username: "@channel_name"
+    #   name: "Channel Name"
+
+facebook:
+  pages: []
+    # - url: "https://facebook.com/pagename"
+    #   name: "Page Name"
