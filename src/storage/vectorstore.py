@@ -1,19 +1,25 @@
 """ChromaDB vector store for semantic search over content chunks."""
 import chromadb
 from chromadb.config import Settings
+from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
 class VectorStore:
     """Manages embeddings and similarity search using ChromaDB."""
 
     def __init__(self, persist_dir: str = "data/db/chroma",
-                 collection_name: str = "sherki_content"):
+                 collection_name: str = "sherki_content",
+                 embedding_model: str = "intfloat/multilingual-e5-large"):
         self.client = chromadb.PersistentClient(
             path=persist_dir,
             settings=Settings(anonymized_telemetry=False),
         )
+        self.embedding_fn = SentenceTransformerEmbeddingFunction(
+            model_name=embedding_model
+        )
         self.collection = self.client.get_or_create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"},
+            embedding_function=self.embedding_fn,
         )
 
     def add_chunks(self, doc_id: str, chunks: list[str],
