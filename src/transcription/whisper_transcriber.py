@@ -5,9 +5,9 @@ from src.storage.db import ContentDB
 
 
 class WhisperTranscriber:
-    """Transcribes audio files to Hebrew text using OpenAI Whisper."""
+    """Transcribes audio files to Hebrew text using faster-whisper."""
 
-    def __init__(self, db: ContentDB, model_name: str = "medium",
+    def __init__(self, db: ContentDB, model_name: str = "ivrit-ai/faster-whisper-v2-d4",
                  transcripts_dir: str = "data/transcripts"):
         self.db = db
         self.model_name = model_name
@@ -17,10 +17,15 @@ class WhisperTranscriber:
 
     @property
     def model(self):
-        """Lazy-load the Whisper model."""
+        """Lazy-load the faster-whisper model."""
         if self._model is None:
-            import whisper
-            self._model = whisper.load_model(self.model_name)
+            from faster_whisper import WhisperModel
+            import torch
+            if torch.cuda.is_available():
+                device, compute = "cuda", "float16"
+            else:
+                device, compute = "cpu", "int8"
+            self._model = WhisperModel(self.model_name, device=device, compute_type=compute)
         return self._model
 
     @staticmethod
@@ -49,8 +54,9 @@ class WhisperTranscriber:
 
     def transcribe_audio(self, audio_path: str) -> str:
         """Transcribe an audio file to Hebrew text."""
-        result = self.model.transcribe(audio_path, language="he", task="transcribe")
-        return self.clean_transcript(result["text"])
+        segments, info = self.model.transcribe(audio_path, language="he")
+        text = " ".join(segment.text for segment in segments)
+        return self.clean_transcript(text)
 
     def process_item(self, item_id: int):
         """Process a single content item."""
