@@ -40,12 +40,19 @@ class EmbeddingPipeline:
         )
         self.db.update_status(item_id, "embedded")
 
-    def process_all_pending(self):
+    def process_all_pending(self, limit: int = 0):
         """Process all transcribed and scraped website content."""
+        count = 0
         for item in self.db.get_by_status("transcribed"):
+            if 0 < limit <= count:
+                break
             print(f"Embedding: {item['title']}")
             self.process_item(item["id"])
+            count += 1
         for item in self.db.get_by_status("scraped"):
+            if 0 < limit <= count:
+                break
             if item["source_type"] == "website":
                 print(f"Embedding: {item['title']}")
                 self.process_item(item["id"])
+                count += 1

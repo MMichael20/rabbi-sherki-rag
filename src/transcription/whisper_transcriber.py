@@ -80,9 +80,11 @@ class WhisperTranscriber:
         except Exception as e:
             self.db.update_status(item_id, "error", str(e))
 
-    def process_all_pending(self):
+    def process_all_pending(self, limit: int = 0):
         """Process all items with 'scraped' status."""
         items = self.db.get_by_status("scraped")
+        if limit > 0:
+            items = items[:limit]
         for item in items:
             print(f"Processing: {item['title']}")
             self.process_item(item["id"])

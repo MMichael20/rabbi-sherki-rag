@@ -29,13 +29,15 @@ def discover_youtube(channel_url: str):
         typer.echo(f"  ... and {len(videos) - 5} more")
 
 @app.command()
-def scrape_youtube():
+def scrape_youtube(limit: int = 0):
     """Download subtitles/audio for all discovered YouTube videos."""
     from src.scrapers.youtube import YouTubeScraper
     db = get_db()
     scraper = YouTubeScraper(db)
     items = db.get_by_status("discovered")
     yt_items = [i for i in items if i["source_type"] == "youtube"]
+    if limit > 0:
+        yt_items = yt_items[:limit]
     typer.echo(f"Scraping {len(yt_items)} YouTube videos...")
     for item in yt_items:
         typer.echo(f"  Scraping: {item['title']}")
@@ -55,22 +57,22 @@ def scrape_website(url: str, selector: str | None = None):
     typer.echo(f"Scraped: {url}")
 
 @app.command()
-def transcribe(model: str = "medium"):
+def transcribe(model: str = "medium", limit: int = 0):
     """Transcribe all scraped audio/video content using Whisper."""
     from src.transcription.whisper_transcriber import WhisperTranscriber
     db = get_db()
     transcriber = WhisperTranscriber(db, model_name=model)
-    transcriber.process_all_pending()
+    transcriber.process_all_pending(limit=limit)
     typer.echo("Transcription complete.")
 
 @app.command()
-def embed():
+def embed(limit: int = 0):
     """Chunk and embed all transcribed content into vector store."""
     from src.processing.embedder import EmbeddingPipeline
     db = get_db()
     vs = get_vectorstore()
     pipeline = EmbeddingPipeline(db, vs)
-    pipeline.process_all_pending()
+    pipeline.process_all_pending(limit=limit)
     typer.echo(f"Embedding complete. Total chunks in store: {vs.count()}")
 
 @app.command()
