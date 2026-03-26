@@ -104,9 +104,11 @@ class YouTubeScraper:
         video_id = details["video_id"]
         sub_path = self.download_subtitles(video_url, video_id)
         if sub_path:
+            print(f"    -> subtitles ({Path(sub_path).suffix.lstrip('.')})")
             self.db.set_raw_path(item_id, sub_path)
             self.db.update_status(item_id, "scraped")
             return
+        print("    -> no subs, downloading audio")
         audio_path = self.download_audio(video_url, video_id)
         self.db.set_raw_path(item_id, audio_path)
         self.db.update_status(item_id, "scraped")
