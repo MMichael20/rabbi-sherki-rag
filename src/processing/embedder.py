@@ -1,4 +1,5 @@
 """Embedding pipeline: reads transcripts, chunks them, stores in vector DB."""
+import json
 from pathlib import Path
 from src.storage.db import ContentDB
 from src.storage.vectorstore import VectorStore
@@ -12,6 +13,15 @@ class EmbeddingPipeline:
         self.db = db
         self.vectorstore = vectorstore
 
+    @staticmethod
+    def _load_segments(transcript_path: str) -> list[dict] | None:
+        """Load segments JSON file alongside a transcript, if it exists."""
+        tp = Path(transcript_path)
+        segments_path = tp.parent / f"{tp.stem}.segments.json"
+        if segments_path.exists():
+            return json.loads(segments_path.read_text(encoding="utf-8"))
+        return None
+
     def process_item(self, item_id: int):
         """Clean, chunk, and embed a single transcribed item."""
         item = self.db.get_by_id(item_id)
@@ -22,7 +32,8 @@ class EmbeddingPipeline:
             return
         text = Path(text_path).read_text(encoding="utf-8")
         text = HebrewCleaner.clean(text)
-        chunks = TextChunker.chunk(text)
+        segments = self._load_segments(text_path) if item.get("transcript_path") else None
+        chunks = TextChunker.chunk(text, segments=segments)
         if not chunks:
             return
         metadatas = [
@@ -32,11 +43,14 @@ class EmbeddingPipeline:
                 "url": item.get("url") or "",
                 "date": item.get("content_date") or "",
                 "chunk_index": i,
+                "start_seconds": chunk["start_seconds"] if chunk["start_seconds"] is not None else -1,
             }
-            for i in range(len(chunks))
+            for i, chunk in enumerate(chunks)
         ]
         self.vectorstore.add_chunks(
-            doc_id=str(item_id), chunks=chunks, metadatas=metadatas,
+            doc_id=str(item_id),
+            chunks=[c["text"] for c in chunks],
+            metadatas=metadatas,
         )
         self.db.update_status(item_id, "embedded")
 

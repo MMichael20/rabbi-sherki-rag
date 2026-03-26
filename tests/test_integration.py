@@ -23,11 +23,12 @@ def test_end_to_end_text_to_query(pipeline):
         "הרב שרקי מדגיש שהתורה היא דרך החיים של עם ישראל."
     )
     chunks = TextChunker.chunk(text, max_tokens=100)
+    chunk_texts = [c["text"] for c in chunks]
 
     vs.add_chunks(
         doc_id="test_article",
-        chunks=chunks,
-        metadatas=[{"source": "website", "title": "שיעור אמונה"} for _ in chunks],
+        chunks=chunk_texts,
+        metadatas=[{"source": "website", "title": "שיעור אמונה"} for _ in chunk_texts],
     )
 
     results = vs.query("מה הרב שרקי אומר על אמונה?", n_results=3)
