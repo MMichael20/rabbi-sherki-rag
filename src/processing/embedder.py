@@ -27,10 +27,10 @@ class EmbeddingPipeline:
             return
         metadatas = [
             {
-                "source": item["source_type"],
-                "title": item.get("title", ""),
-                "url": item.get("url", ""),
-                "date": item.get("content_date", ""),
+                "source": item["source_type"] or "",
+                "title": item.get("title") or "",
+                "url": item.get("url") or "",
+                "date": item.get("content_date") or "",
                 "chunk_index": i,
             }
             for i in range(len(chunks))

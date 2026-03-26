@@ -1,4 +1,5 @@
 """Whisper-based audio transcription for Hebrew content."""
+import json
 import re
 from pathlib import Path
 from src.storage.db import ContentDB
@@ -52,11 +53,20 @@ class WhisperTranscriber:
         lines = [line for line in lines if line]
         return "\n".join(lines)
 
-    def transcribe_audio(self, audio_path: str) -> str:
-        """Transcribe an audio file to Hebrew text."""
+    def transcribe_audio(self, audio_path: str) -> tuple[str, list[dict]]:
+        """Transcribe an audio file to Hebrew text. Returns (text, timestamped_segments)."""
         segments, info = self.model.transcribe(audio_path, language="he")
-        text = " ".join(segment.text for segment in segments)
-        return self.clean_transcript(text)
+        timed_segments = []
+        texts = []
+        for segment in segments:
+            timed_segments.append({
+                "start": round(segment.start, 2),
+                "end": round(segment.end, 2),
+                "text": segment.text.strip(),
+            })
+            texts.append(segment.text)
+        text = " ".join(texts)
+        return self.clean_transcript(text), timed_segments
 
     def process_item(self, item_id: int):
         """Process a single content item."""
@@ -65,12 +75,17 @@ class WhisperTranscriber:
             return
         raw_path = Path(item["raw_path"])
         transcript_path = self.transcripts_dir / f"{raw_path.stem}.txt"
+        timestamps_path = self.transcripts_dir / f"{raw_path.stem}.json"
         try:
             if raw_path.suffix in (".vtt", ".srt"):
                 vtt_content = raw_path.read_text(encoding="utf-8")
                 text = self.vtt_to_text(vtt_content)
             elif raw_path.suffix in (".mp3", ".m4a", ".wav", ".opus"):
-                text = self.transcribe_audio(str(raw_path))
+                text, timed_segments = self.transcribe_audio(str(raw_path))
+                timestamps_path.write_text(
+                    json.dumps(timed_segments, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
             else:
                 text = raw_path.read_text(encoding="utf-8")
             text = self.clean_transcript(text)
