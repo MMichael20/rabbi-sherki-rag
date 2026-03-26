@@ -30,21 +30,45 @@ class WhisperTranscriber:
         return self._model
 
     @staticmethod
-    def vtt_to_text(vtt_content: str) -> str:
-        """Convert VTT subtitle content to clean deduplicated text."""
-        lines = []
-        seen = set()
+    def vtt_to_segments(vtt_content: str) -> list[dict]:
+        """Parse VTT subtitle content into timestamped segments.
+
+        Returns list of {"start": float_seconds, "text": str} dicts.
+        Deduplicates repeated text lines (common in YouTube auto-captions).
+        """
+        segments = []
+        seen_texts = set()
+        current_start = None
+
         for line in vtt_content.split("\n"):
             line = line.strip()
-            if not line or line == "WEBVTT" or "-->" in line:
+            if not line or line == "WEBVTT" or line.startswith("Kind:") or line.startswith("Language:"):
                 continue
-            line = re.sub(r"<[^>]+>", "", line)
-            if not line:
+            if "-->" in line:
+                time_part = line.split("-->")[0].strip()
+                parts = time_part.replace(",", ".").split(":")
+                if len(parts) == 3:
+                    h, m, s = parts
+                    current_start = int(h) * 3600 + int(m) * 60 + float(s)
+                elif len(parts) == 2:
+                    m, s = parts
+                    current_start = int(m) * 60 + float(s)
                 continue
-            if line not in seen:
-                lines.append(line)
-                seen.add(line)
-        return "\n".join(lines)
+            text = re.sub(r"<[^>]+>", "", line).strip()
+            text = text.replace("&gt;", ">").replace("&lt;", "<").replace("&amp;", "&")
+            if not text or text in seen_texts:
+                continue
+            if current_start is not None:
+                segments.append({"start": current_start, "text": text})
+                seen_texts.add(text)
+
+        return segments
+
+    @staticmethod
+    def vtt_to_text(vtt_content: str) -> str:
+        """Convert VTT subtitle content to clean deduplicated text."""
+        segments = WhisperTranscriber.vtt_to_segments(vtt_content)
+        return "\n".join(seg["text"] for seg in segments)
 
     @staticmethod
     def clean_transcript(text: str) -> str:
