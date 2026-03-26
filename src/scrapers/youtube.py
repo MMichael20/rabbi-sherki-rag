@@ -20,6 +20,14 @@ class YouTubeScraper:
             return None
         return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
 
+    # YouTube uses the legacy "iw" code for Hebrew; yt-dlp may also
+    # normalise it to "he" depending on version.  Check both.
+    _HEBREW_CODES = ("he", "iw")
+
+    @staticmethod
+    def _has_hebrew(mapping: dict) -> bool:
+        return any(code in mapping for code in YouTubeScraper._HEBREW_CODES)
+
     @staticmethod
     def parse_video_info(info: dict) -> dict:
         subs = info.get("subtitles") or {}
@@ -30,8 +38,8 @@ class YouTubeScraper:
             "url": info.get("webpage_url"),
             "date": YouTubeScraper.parse_upload_date(info.get("upload_date")),
             "duration_seconds": info.get("duration"),
-            "has_manual_subs": "he" in subs,
-            "has_auto_subs": "he" in auto_caps,
+            "has_manual_subs": YouTubeScraper._has_hebrew(subs),
+            "has_auto_subs": YouTubeScraper._has_hebrew(auto_caps),
         }
 
     def discover_channel(self, channel_url: str) -> list[dict]:
@@ -55,7 +63,7 @@ class YouTubeScraper:
         """Fetch full metadata for a single video."""
         cmd = [
             "yt-dlp", "--dump-json", "--no-download",
-            "--write-subs", "--write-auto-subs", "--sub-lang", "he", video_url,
+            "--write-subs", "--write-auto-subs", "--sub-lang", "he,iw", video_url,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
         info = json.loads(result.stdout)
@@ -65,11 +73,12 @@ class YouTubeScraper:
         """Download Hebrew subtitles. Returns path or None."""
         out_path = self.raw_dir / video_id
         cmd = [
-            "yt-dlp", "--write-subs", "--write-auto-subs", "--sub-lang", "he",
+            "yt-dlp", "--write-subs", "--write-auto-subs", "--sub-lang", "he,iw",
             "--skip-download", "--sub-format", "vtt", "-o", str(out_path), video_url,
         ]
         subprocess.run(cmd, capture_output=True, text=True)
-        for ext in [".he.vtt", ".he.srt"]:
+        # yt-dlp may save with either language code depending on the source
+        for ext in [".he.vtt", ".iw.vtt", ".he.srt", ".iw.srt"]:
             path = Path(str(out_path) + ext)
             if path.exists():
                 return str(path)
