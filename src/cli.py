@@ -1,6 +1,16 @@
 """CLI entry point for the Rabbi Sherki RAG pipeline."""
+import sys
+import os
 import typer
 from pathlib import Path
+
+# Ensure UTF-8 output on Windows
+if sys.platform == "win32":
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
 
 app = typer.Typer(help="Rabbi Sherki Knowledge Base — Scrape, Transcribe, Embed, Ask")
 
@@ -76,11 +86,11 @@ def embed(limit: int = 0):
     typer.echo(f"Embedding complete. Total chunks in store: {vs.count()}")
 
 @app.command()
-def ask(question: str):
+def ask(question: str, model: str = "gpt-4o-mini"):
     """Ask a question about Rabbi Sherki's teachings."""
     from src.agent.rag_agent import RagAgent
     vs = get_vectorstore()
-    agent = RagAgent(vs)
+    agent = RagAgent(vs, model=model)
     answer = agent.ask(question)
     typer.echo(f"\n{answer}")
 

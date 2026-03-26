@@ -1,9 +1,13 @@
 """YouTube scraper using yt-dlp for metadata, subtitles, and audio download."""
 import subprocess
+import sys
 import json
 import os
 from pathlib import Path
 from src.storage.db import ContentDB
+
+# Use python -m yt_dlp so it works even when yt-dlp isn't on PATH
+_YT_DLP = [sys.executable, "-m", "yt_dlp"]
 
 
 class YouTubeScraper:
@@ -45,7 +49,7 @@ class YouTubeScraper:
     def discover_channel(self, channel_url: str) -> list[dict]:
         """Fetch metadata for all videos in a channel."""
         cmd = [
-            "yt-dlp", "--flat-playlist", "--dump-json", "--no-download", channel_url,
+            *_YT_DLP, "--flat-playlist", "--dump-json", "--no-download", channel_url,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
         videos = []
@@ -62,7 +66,7 @@ class YouTubeScraper:
     def fetch_video_details(self, video_url: str) -> dict:
         """Fetch full metadata for a single video."""
         cmd = [
-            "yt-dlp", "--dump-json", "--no-download",
+            *_YT_DLP, "--dump-json", "--no-download",
             "--write-subs", "--write-auto-subs", "--sub-lang", "he,iw", video_url,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
@@ -73,7 +77,7 @@ class YouTubeScraper:
         """Download Hebrew subtitles. Returns path or None."""
         out_path = self.raw_dir / video_id
         cmd = [
-            "yt-dlp", "--write-subs", "--write-auto-subs", "--sub-lang", "he,iw",
+            *_YT_DLP, "--write-subs", "--write-auto-subs", "--sub-lang", "he,iw",
             "--skip-download", "--sub-format", "vtt", "-o", str(out_path), video_url,
         ]
         subprocess.run(cmd, capture_output=True, text=True)
@@ -88,7 +92,7 @@ class YouTubeScraper:
         """Download audio only for transcription."""
         out_template = str(self.raw_dir / f"{video_id}.%(ext)s")
         cmd = [
-            "yt-dlp", "--extract-audio", "--audio-format", "mp3",
+            *_YT_DLP, "--extract-audio", "--audio-format", "mp3",
             "--audio-quality", "5", "-o", out_template, video_url,
         ]
         subprocess.run(cmd, capture_output=True, text=True)
