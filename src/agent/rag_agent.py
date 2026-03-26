@@ -1,15 +1,15 @@
-"""RAG agent: retrieves relevant content and answers questions via Claude."""
-import anthropic
+"""RAG agent: retrieves relevant content and answers questions via OpenAI."""
+from openai import OpenAI
 from src.storage.vectorstore import VectorStore
 
 
 class RagAgent:
     """Answers questions about Rabbi Sherki's teachings using RAG."""
 
-    def __init__(self, vectorstore: VectorStore, model: str = "claude-sonnet-4-6"):
+    def __init__(self, vectorstore: VectorStore, model: str = "gpt-4o-mini"):
         self.vectorstore = vectorstore
         self.model = model
-        self.client = anthropic.Anthropic()
+        self.client = OpenAI()
 
     @staticmethod
     def build_system_prompt() -> str:
@@ -26,19 +26,45 @@ class RagAgent:
         )
 
     @staticmethod
+    def format_timestamp(seconds: int) -> str:
+        """Format seconds into human-readable timestamp."""
+        if seconds >= 3600:
+            h = seconds // 3600
+            m = (seconds % 3600) // 60
+            s = seconds % 60
+            return f"{h}:{m:02d}:{s:02d}"
+        m = seconds // 60
+        s = seconds % 60
+        return f"{m}:{s:02d}"
+
+    @staticmethod
     def build_context(chunks: list[dict]) -> str:
         """Format retrieved chunks into context for the LLM."""
+        import re
         parts = []
         for i, chunk in enumerate(chunks, 1):
             meta = chunk.get("metadata", {})
             title = meta.get("title", "ללא כותרת")
             url = meta.get("url", "")
             date = meta.get("date", "")
+            start_seconds = meta.get("start_seconds", -1)
+
             header = f"[מקור {i}: {title}"
             if date:
                 header += f" | {date}"
-            header += f"]\n{url}"
-            parts.append(f"{header}\n{chunk['text']}")
+
+            has_timestamp = isinstance(start_seconds, (int, float)) and start_seconds >= 0
+            if has_timestamp:
+                header += f" | דקה {RagAgent.format_timestamp(int(start_seconds))}"
+            header += "]"
+
+            display_url = url
+            if has_timestamp and "youtube.com" in url:
+                display_url = re.sub(r"[&?]t=\d+s?", "", url)
+                separator = "&" if "?" in display_url else "?"
+                display_url += f"{separator}t={int(start_seconds)}s"
+
+            parts.append(f"{header}\n{display_url}\n{chunk['text']}")
         return "\n\n---\n\n".join(parts)
 
     def ask(self, question: str, n_results: int = 7) -> str:
@@ -47,15 +73,15 @@ class RagAgent:
         if not results:
             return "לא נמצא מידע רלוונטי בבסיס הנתונים."
         context = self.build_context(results)
-        message = self.client.messages.create(
+        response = self.client.chat.completions.create(
             model=self.model,
             max_tokens=2048,
-            system=self.build_system_prompt(),
             messages=[
+                {"role": "system", "content": self.build_system_prompt()},
                 {
                     "role": "user",
                     "content": f"הקטעים הרלוונטיים:\n\n{context}\n\n---\n\nשאלה: {question}",
-                }
+                },
             ],
         )
-        return message.content[0].text
+        return response.choices[0].message.content
