@@ -99,21 +99,25 @@ class WhisperTranscriber:
             return
         raw_path = Path(item["raw_path"])
         transcript_path = self.transcripts_dir / f"{raw_path.stem}.txt"
-        timestamps_path = self.transcripts_dir / f"{raw_path.stem}.json"
+        segments_path = self.transcripts_dir / f"{raw_path.stem}.segments.json"
         try:
             if raw_path.suffix in (".vtt", ".srt"):
                 vtt_content = raw_path.read_text(encoding="utf-8")
-                text = self.vtt_to_text(vtt_content)
+                segments = self.vtt_to_segments(vtt_content)
+                text = "\n".join(seg["text"] for seg in segments)
             elif raw_path.suffix in (".mp3", ".m4a", ".wav", ".opus"):
                 text, timed_segments = self.transcribe_audio(str(raw_path))
-                timestamps_path.write_text(
-                    json.dumps(timed_segments, ensure_ascii=False, indent=2),
-                    encoding="utf-8",
-                )
+                segments = [{"start": s["start"], "text": s["text"]} for s in timed_segments]
             else:
                 text = raw_path.read_text(encoding="utf-8")
+                segments = []
             text = self.clean_transcript(text)
             transcript_path.write_text(text, encoding="utf-8")
+            if segments:
+                segments_path.write_text(
+                    json.dumps(segments, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
             self.db.set_transcript_path(item_id, str(transcript_path))
             self.db.update_status(item_id, "transcribed")
         except Exception as e:
